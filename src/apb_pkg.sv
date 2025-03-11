@@ -21,6 +21,9 @@ parameter FALSE = 0;
 parameter ALIGNBITS = $clog2((DATA_WIDTH / 8));     // Calculates number of bits that should
                                                     // be zero if byte-aligned
 
+// Parameter for Memory Size
+parameter MEM_SIZE = (2 ** ADDR_WIDTH) / DATA_WIDTH; // Calculate memory size based on address and data width
+
 // Tasks/Functions
 function automatic validAlign(
     input [ADDR_WIDTH-1:0] baseAddr
@@ -28,6 +31,5 @@ function automatic validAlign(
     logic [ALIGNBITS-1:0] compareVal = '0;
     return (baseAddr[ALIGNBITS-1:0] === compareVal) ? TRUE : FALSE;
 endfunction: validAlign
-
 
 endpackage

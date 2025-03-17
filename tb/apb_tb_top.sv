@@ -7,6 +7,7 @@
 // peripheral, and the APB bridge. Controls overall flow of
 // testing by calling individual test function.
 // Also generates the clock and reset signal.
+//
 ////////////////////////////////////////////////////////////////
 
 `include "../src/apb_pkg.sv"

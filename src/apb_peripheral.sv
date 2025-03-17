@@ -130,3 +130,4 @@ module apb_peripheral
   end
 
 endmodule
+

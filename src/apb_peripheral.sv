@@ -10,13 +10,13 @@ module apb_peripheral
     apb_if.peripheral apb  // Connect to APB interface (peripheral side)
 );
   // Import package
-  import apb_pkg::*;
+  import apb_pkg::*; 
 
   // FSM Variables
   state currState, nextState;
   logic [5:0] wsCount, nextwsCount;
 
-  // Internal storage
+  // Internal storage (simple 4-register memory)
   logic [31:0] reg_mem[REG_ITEMS];
 
   // FSM
@@ -38,7 +38,7 @@ module apb_peripheral
 
       // Update counter
       wsCount <= nextwsCount;
-      end
+    end
   end
 
   assign nextwsCount =  (currState != SETUP) ? numWS :  
@@ -54,25 +54,18 @@ module apb_peripheral
         apb.pslverr = 1'b0;
       end
       SETUP: begin
-        // TODO: Need write logic here
+        // Write operation
         if (apb.pwrite) begin
           apb.prdata = 'bz;
-
-        // For read transfer, drive PRDATA with the contents
-        // of the reg_mem using PADDR excluding the byte align bits
-        // If nextState is ERROR, drive prdata with Z
+        // For read transfer, drive PRDATA with the contents of reg_mem using PADDR
         end else begin
           apb.prdata = (nextState == ERROR) ? 'bz : reg_mem[apb.paddr[ADDR_WIDTH-1:ALIGNBITS]];
         end
 
-        // Note: to simulate waitstates,
-        // PREADY needs to be deasserted (maybe use
-        // a counter to keep PREADY deasserted for
-        // x number of cycles)
+        // Simulate waitstates and handle PREADY
         apb.pready = (nextState == ACCESS || nextState == ERROR) ? 1'b1 : 1'b0;
         apb.pslverr = (nextState == ERROR) ? 1'b1 : 1'b0;
       end
-
     endcase
   end
 
@@ -81,50 +74,38 @@ module apb_peripheral
     unique case (currState)
       // IDLE: Default state of APB Protocol (no transfer)
       IDLE: begin
-        // Check if device is selected and if the state is
-        // not in a secondary or subsequent cycle of the APB transfer
         if (apb.psel) begin
           nextState = SETUP;
-
-        // Else remain in IDLE mode
         end else begin
           nextState = IDLE;
         end
       end
-      // SETUP: a transfer has been sent by REQUESTER
+
+      // SETUP: Transfer initiated
       SETUP: begin
-        // If the requester is ready for access and therr,
-        // are no more wait states the peripheral will 
-        // transition to ACCESS
         if (wsCount == 0) begin
           nextState = ACCESS;
         end else begin
           nextState = SETUP;
         end
-        // Checks for the following errors:
-        // - If PSEL signal drops during SETUP
-        // - If PADDR is not aligned
-        // - If PENABLE signal is not asserted during SETUP
-        // - If PPROT does not match the PPROT given by PADDR
-        if (!apb.psel || !validAlign(apb.paddr) || !apb.penable || getPprot(apb.paddr) !== apb.pprot)
-          nextState = ERROR;     // Go to ERROR state
-      end
-      // ACCESS: checks for continued chained accesses
-      ACCESS: begin
-          // If PSEL still is high, go back to SETUP
-          // for chained reads/writes
-          if (apb.psel) begin
-            nextState = SETUP;
 
-          // Else return back to IDLE
-          end else begin
-            nextState = IDLE;
-          end
-        end
-        // ERROR: alt. state for ACCESS when illegal action
-        // is detected by COMPLETER
-      ERROR: begin
+        // Check errors in the SETUP state
+        if (!apb.psel || !validAlign(apb.paddr) || !apb.penable || getPprot(apb.paddr) !== apb.pprot) 
+          nextState = ERROR;  // Go to ERROR state
+      end
+
+      // ACCESS: Handles chained accesses and transitions back to IDLE or SETUP
+      ACCESS: begin
+        if (apb.psel) begin
+          nextState = SETUP;
+        end else begin
           nextState = IDLE;
+        end
+      end
+
+      // ERROR: Invalid transfer detected, return to IDLE
+      ERROR: begin
+        nextState = IDLE;
       end
     endcase
   end
